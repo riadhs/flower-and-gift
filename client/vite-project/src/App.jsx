@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import CATEGORIES from "./categories/categories"
 import { all, byCategory } from "./categories/products";
@@ -6,6 +6,7 @@ import { useCart } from "./CartContext.jsx";
 import CartPage from "./CartPage.jsx";
 import Time from "./Time.jsx";
 import { FaMapMarkerAlt } from "react-icons/fa";
+import ProductCard from "./productCard.jsx"
 
 
 // helper for URL
@@ -17,10 +18,29 @@ function unslugify(slug) {
 }
 
 
+function getPrevNextCategory(currentCategory) {
+  const idx = CATEGORIES.indexOf(currentCategory);
+
+  // if category not found, default to first
+  const safeIdx = idx === -1 ? 0 : idx;
+
+  const prevIdx = (safeIdx - 1 + CATEGORIES.length) % CATEGORIES.length;
+  const nextIdx = (safeIdx + 1) % CATEGORIES.length;
+
+  return {
+    prev: CATEGORIES[prevIdx],
+    next: CATEGORIES[nextIdx],
+  };
+}
+
+
+
 function useProducts() {
   // no useMemo needed since this is imported data
   return { byCategory, all };
 }
+
+
 
 
 export default function App() {
@@ -196,15 +216,27 @@ function CatalogPreviewPage() {
 }
 
 
+function ProductGrid({ products, onAdd }) {
+  if (!products.length) return <div style={{ padding: 12, opacity: 0.8 }}>No items yet.</div>;
+
+  return (
+    <div className="grid">
+      {products.map((p) => (
+        <ProductCard key={p.id} p={p} onAdd={onAdd} />
+      ))}
+    </div>
+  );
+}
+
+
+
 function CategoryPage() {
   const { all: allProducts } = useProducts();
   const { categorySlug } = useParams();
+  const navigate = useNavigate();
 
-  const today = new Date();
+  const category = unslugify(categorySlug) || CATEGORIES[0];
 
-  const category = unslugify(categorySlug);
-
-  //  real cart function
   const { addItem } = useCart();
 
   const [activeCategory, setActiveCategory] = useState(category);
@@ -212,73 +244,48 @@ function CategoryPage() {
 
   const q = query.trim().toLowerCase();
 
-  //  If searching => show results from all categories
-  //  If not searching => show only this category
   const filtered = allProducts
-    .filter((p) => {
-      if (q) return true;
-      return p.category === category;
-    })
+    .filter((p) => (q ? true : p.category === category))
     .filter((p) => {
       if (!q) return true;
       return (
-        p.title.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)
+        p.title.toLowerCase().includes(q) ||
+        p.desc.toLowerCase().includes(q)
       );
     });
 
+  const { prev, next } = getPrevNextCategory(category);
+
+  function goCategory(catName) {
+    setActiveCategory(catName);
+    setQuery("");
+    navigate(`/category/${slugify(catName)}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <Layout
-      today={today}
       activeCategory={activeCategory}
       setActiveCategory={setActiveCategory}
       onSearch={setQuery}
       query={query}
     >
-      <div style={{ fontWeight: 800, marginBottom: 10 }}>
-        {q ? `Search results for: "${query}"` : category}
+      <div className="catNavRow">
+        <div className="catTitle">
+          {q ? `Search results for: "${query}"` : category}
+        </div>
       </div>
 
-      {/* IMPORTANT: ProductGrid must call onAdd(p) */}
       <ProductGrid products={filtered} onAdd={addItem} />
+
+      <div className="catNavBottom">
+        <button className="catNavBtn" type="button" onClick={() => goCategory(prev)}>
+          ← Previous
+        </button>
+        <button className="catNavBtn" type="button" onClick={() => goCategory(next)}>
+          Next →
+        </button>
+      </div>
     </Layout>
   );
 }
-
-
-/** Shared UI grid */
-function ProductGrid({ products, onAdd }) {
-  if (!products.length) {
-    return <div style={{ padding: 12, opacity: 0.8 }}>No items yet.</div>;
-  }
-
-  return (
-    <div className="grid">
-      {products.map((p) => (
-        <article className="card" key={p.id}>
-          <div className="thumb">
-            <img src={p.img} alt={p.title} />
-            
-
-            <button
-              className="addBtn"
-              type="button"
-              onClick={() => onAdd(p)}
-              aria-label={`Add ${p.title} to cart`}
-              title="Add to cart"
-            >
-              +
-            </button>
-
-          </div>
-
-          <div className="cardBody">
-            <div className="cardTitle">{p.title}</div>
-            <div className="cardDesc">{p.desc}</div>
-            <div className="cardPrice">${p.price.toFixed(2)}</div>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
-}
-

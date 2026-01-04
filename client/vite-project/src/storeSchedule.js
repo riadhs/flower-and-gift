@@ -1,12 +1,12 @@
 
 export const WEEKLY_SCHEDULE = {
-  sun: { closed: false, open: "10:00", close: "3:00" },
+  sun: { closed: false, open: "10:00", close: "21:00" },
   mon: { closed: false, open: "10:00", close: "21:00" },
-  tue: { closed: false, open: "10:00", close: "2:00" },
-  wed: { closed: false, open: "10:00", close: "2:00" },
-  thu: { closed: false, open: "10:00", close: "2:00" },
-  fri: { closed: false, open: "10:00", close: "2:00" },
-  sat: { closed: false, open: "10:00", close: "2:00" },
+  tue: { closed: false, open: "10:00", close: "21:00" },
+  wed: { closed: false, open: "10:00", close: "21:00" },
+  thu: { closed: false, open: "10:00", close: "21:00" },
+  fri: { closed: false, open: "10:00", close: "21:00" },
+  sat: { closed: false, open: "10:00", close: "21:00" },
 };
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];

@@ -470,3 +470,123 @@ body {
   display: flex;
   align-items: center;
 }
+
+.catNavRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.catTitle {
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.catNavBtns {
+  display: flex;
+  gap: 10px;
+}
+
+.catNavBtn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.catNavBtn:hover {
+  border-color: #d81f2a;
+}
+
+.catNavBottom {
+  width: 100%;               /* ⬅️ important */
+  margin: 40px 0 60px;
+  display: flex;
+  justify-content: center;   /* ⬅️ centers buttons */
+  align-items: center;
+  gap: 20px;
+}
+
+.variantRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.variantLabel {
+  font-weight: 700;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.variantRow select {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: white;
+}
+
+.variantTag {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-left: 6px;
+}
+
+.addonsBox {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.addonsTitle {
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.addonsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.addonRow {
+  display: grid;
+  grid-template-columns: 22px 54px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #f0f0f0;
+}
+
+.addonImg {
+  width: 54px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.addonName {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.addonInfo select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.addonPrice {
+  font-weight: 800;
+  white-space: nowrap;
+}
