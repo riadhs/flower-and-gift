@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import CATEGORIES from "./categories/categories"
-import { all, byCategory } from "./categories/products";
+// import { all, byCategory } from "./categories/products"; //used for front end load and repleaced with useProduct.js
+import useProducts from "./useProducts";
 import { useCart } from "./CartContext.jsx";
 import CartPage from "./CartPage.jsx";
 import Time from "./Time.jsx";
@@ -35,10 +36,10 @@ function getPrevNextCategory(currentCategory) {
 
 
 
-function useProducts() {
-  // no useMemo needed since this is imported data
-  return { byCategory, all };
-}
+// function useProducts() {
+//   // no useMemo needed since this is imported data
+//   return { byCategory, all };
+// }
 
 
 
@@ -157,7 +158,13 @@ function Layout({ today, children, activeCategory, setActiveCategory, onSearch, 
 // and keeps the existing search + See more behavior
 
 function CatalogPreviewPage() {
-  const { all: allProducts } = useProducts();
+  // const { all: allProducts } = useProducts(); //only front end
+  const { all: allProducts, loading, error } = useProducts();
+  // //...............................................................................
+  // if (loading) return <div style={{ padding: 16 }}>Loading products...</div>;
+  // if (error) return <div style={{ padding: 16, color: "crimson" }}>{error}</div>;
+  // //...............................................................................
+
   const navigate = useNavigate();
   const today = new Date();
 
@@ -169,6 +176,11 @@ function CatalogPreviewPage() {
 
   // optional: make See more load more results when searching
   const [limit, setLimit] = useState(6);
+
+   //...............................................................................
+  if (loading) return <div style={{ padding: 16 }}>Loading products...</div>;
+  if (error) return <div style={{ padding: 16, color: "crimson" }}>{error}</div>;
+  //...............................................................................
 
   const filtered = allProducts.filter((p) => {
     const q = query.trim().toLowerCase();
@@ -231,7 +243,13 @@ function ProductGrid({ products, onAdd }) {
 
 
 function CategoryPage() {
-  const { all: allProducts } = useProducts();
+  // const { all: allProducts } = useProducts();
+  const { all: allProducts, loading, error } = useProducts();
+
+  // if (loading) return <div style={{ padding: 16 }}>Loading products...</div>;
+  // if (error) return <div style={{ padding: 16, color: "crimson" }}>{error}</div>;
+  // //...............................................................................
+
   const { categorySlug } = useParams();
   const navigate = useNavigate();
 
@@ -241,6 +259,12 @@ function CategoryPage() {
 
   const [activeCategory, setActiveCategory] = useState(category);
   const [query, setQuery] = useState("");
+
+
+   //...............................................................................
+  if (loading) return <div style={{ padding: 16 }}>Loading products...</div>;
+  if (error) return <div style={{ padding: 16, color: "crimson" }}>{error}</div>;
+  //...............................................................................
 
   const q = query.trim().toLowerCase();
 
