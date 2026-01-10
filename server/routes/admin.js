@@ -10,9 +10,6 @@ const router = express.Router();
 /** LOGIN */
 router.post("/login", async (req, res) => {
 
-  console.log("ADMIN_EMAIL:", process.env.ADMIN_EMAIL);
-  console.log("ADMIN_PASSWORD:", process.env.ADMIN_PASSWORD);
-
 
   const { email, password } = req.body || {};
 
@@ -38,55 +35,148 @@ router.post("/login", async (req, res) => {
 /** Protect everything below */
 router.use(adminAuth);
 
-/** GET all products (admin view) */
+
 router.get("/products", async (req, res) => {
   const [rows] = await db.query(
     `
-    SELECT p.id, p.title, p.description, p.image_url, p.is_active,
-           c.name AS category
+    SELECT 
+      p.id, p.title, p.description, p.image_url, p.is_active,
+      c.name AS category,
+      MIN(v.price_cents) AS min_price_cents
     FROM products p
     LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN product_variants v 
+      ON v.product_id = p.id AND v.is_active = TRUE
+    GROUP BY p.id
     ORDER BY p.id DESC
     `
   );
-  res.json(rows);
+
+  // optional: convert cents to dollars
+  const out = rows.map(r => ({
+    ...r,
+    price: r.min_price_cents != null ? Number(r.min_price_cents) / 100 : 0
+  }));
+
+  res.json(out);
 });
 
-/** Create product */
+
+
+router.get("/products/:id", async (req, res) => {
+  const id = Number(req.params.id);
+
+  const [rows] = await db.query(
+    `
+    SELECT p.id, p.title, p.description, p.image_url, p.category_id, p.is_active,
+           c.name AS category
+    FROM products p
+    LEFT JOIN categories c ON c.id = p.category_id
+    WHERE p.id = ?
+    LIMIT 1
+    `,
+    [id]
+  );
+
+  if (!rows.length) return res.status(404).json({ error: "Not found" });
+  res.json(rows[0]);
+});
+
+
+
 const productSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().default(""),
   image_url: z.string().url().optional().default(""),
-  category_id: z.number().int(),
-  is_active: z.boolean().optional().default(true),
+  category_id: z.coerce.number().int(),     // ✅ coerce fixes frontend sending "3"
+  is_active: z.coerce.boolean().optional().default(true),
+  price: z.coerce.number().nonnegative().optional().default(0), // ✅ from admin form
 });
+
 
 router.post("/products", async (req, res) => {
   const data = productSchema.parse(req.body);
 
-  const [result] = await db.query(
-    `INSERT INTO products (title, description, image_url, category_id, is_active)
-     VALUES (?, ?, ?, ?, ?)`,
-    [data.title, data.description, data.image_url, data.category_id, data.is_active]
-  );
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  res.status(201).json({ id: result.insertId });
+    const [result] = await conn.query(
+      `INSERT INTO products (title, description, image_url, category_id, is_active)
+       VALUES (?, ?, ?, ?, ?)`,
+      [data.title, data.description, data.image_url, data.category_id, data.is_active]
+    );
+
+    const productId = result.insertId;
+
+    // ✅ create default "Standard" variant using price
+    const priceCents = Math.round(Number(data.price || 0) * 100);
+
+    await conn.query(
+      `INSERT INTO product_variants (product_id, label, price_cents, sku, is_active)
+       VALUES (?, 'Standard', ?, NULL, TRUE)`,
+      [productId, priceCents]
+    );
+
+    await conn.commit();
+    res.status(201).json({ id: productId });
+  } catch (e) {
+    await conn.rollback();
+    res.status(500).json({ error: e.message || "Create failed" });
+  } finally {
+    conn.release();
+  }
 });
 
-/** Update product */
+
 router.put("/products/:id", async (req, res) => {
   const id = Number(req.params.id);
   const data = productSchema.parse(req.body);
 
-  await db.query(
-    `UPDATE products
-     SET title=?, description=?, image_url=?, category_id=?, is_active=?
-     WHERE id=?`,
-    [data.title, data.description, data.image_url, data.category_id, data.is_active, id]
-  );
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  res.json({ ok: true });
+    await conn.query(
+      `UPDATE products
+       SET title=?, description=?, image_url=?, category_id=?, is_active=?
+       WHERE id=?`,
+      [data.title, data.description, data.image_url, data.category_id, data.is_active, id]
+    );
+
+    // ✅ update or create Standard variant
+    const priceCents = Math.round(Number(data.price || 0) * 100);
+
+    const [existing] = await conn.query(
+      `SELECT id FROM product_variants
+       WHERE product_id=? AND label='Standard'
+       LIMIT 1`,
+      [id]
+    );
+
+    if (existing.length) {
+      await conn.query(
+        `UPDATE product_variants SET price_cents=? WHERE id=?`,
+        [priceCents, existing[0].id]
+      );
+    } else {
+      await conn.query(
+        `INSERT INTO product_variants (product_id, label, price_cents, sku, is_active)
+         VALUES (?, 'Standard', ?, NULL, TRUE)`,
+        [id, priceCents]
+      );
+    }
+
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (e) {
+    await conn.rollback();
+    res.status(500).json({ error: e.message || "Update failed" });
+  } finally {
+    conn.release();
+  }
 });
+
 
 /** Soft delete (deactivate) product */
 router.delete("/products/:id", async (req, res) => {
@@ -95,6 +185,20 @@ router.delete("/products/:id", async (req, res) => {
   await db.query(`UPDATE products SET is_active=FALSE WHERE id=?`, [id]);
   res.json({ ok: true });
 });
+
+/** Hard delete (permanent) product */
+router.delete("/products/:id/hard", async (req, res) => {
+  const id = Number(req.params.id);
+
+  // delete variants first to avoid FK constraint errors
+  await db.query(`DELETE FROM product_variants WHERE product_id=?`, [id]);
+
+  // now delete the product
+  await db.query(`DELETE FROM products WHERE id=?`, [id]);
+
+  res.json({ ok: true });
+});
+
 
 /** Variants */
 const variantSchema = z.object({
@@ -148,5 +252,107 @@ router.delete("/variants/:variantId", async (req, res) => {
   await db.query(`DELETE FROM product_variants WHERE id=?`, [variantId]);
   res.json({ ok: true });
 });
+
+
+// ===== SCHEDULE (ADMIN) =====
+
+// Get schedule (admin)
+router.get("/schedule", async (req, res) => {
+  const [weekly] = await db.query(
+    `SELECT day_of_week, is_closed, open_time, close_time
+     FROM store_schedule
+     ORDER BY day_of_week ASC`
+  );
+
+  const [exceptions] = await db.query(
+    `SELECT id, date, is_closed, open_time, close_time, note
+     FROM store_schedule_exceptions
+     ORDER BY date DESC`
+  );
+
+  res.json({ weekly, exceptions });
+});
+
+// Upsert one day (admin)
+router.put("/schedule/weekly/:day", async (req, res) => {
+  const day = Number(req.params.day); // 0..6
+  const { is_closed, open_time, close_time } = req.body || {};
+
+  if (!(day >= 0 && day <= 6)) return res.status(400).json({ error: "Invalid day" });
+
+  // If closed, force times null
+  const closed = !!is_closed;
+  const open = closed ? null : (open_time || null);
+  const close = closed ? null : (close_time || null);
+
+  // await db.query(
+  //   `INSERT INTO store_schedule (day_of_week, is_closed, open_time, close_time)
+  //    VALUES (?, ?, ?, ?)
+  //    ON DUPLICATE KEY UPDATE
+  //      is_closed=VALUES(is_closed),
+  //      open_time=VALUES(open_time),
+  //      close_time=VALUES(close_time)`,
+  //   [day, closed, open, close]
+  // );
+
+  await db.query(
+  `INSERT INTO store_schedule (day_of_week, is_closed, open_time, close_time)
+   VALUES (?, ?, ?, ?)
+   AS new
+   ON DUPLICATE KEY UPDATE
+     is_closed = new.is_closed,
+     open_time = new.open_time,
+     close_time = new.close_time`,
+  [day, closed, open, close]
+);
+
+
+  res.json({ ok: true });
+});
+
+// Create/update an exception by date (admin)
+router.put("/schedule/exceptions", async (req, res) => {
+  const { date, is_closed, open_time, close_time, note } = req.body || {};
+  if (!date) return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+
+  const closed = !!is_closed;
+  const open = closed ? null : (open_time || null);
+  const close = closed ? null : (close_time || null);
+
+  // await db.query(
+  //   `INSERT INTO store_schedule_exceptions (date, is_closed, open_time, close_time, note)
+  //    VALUES (?, ?, ?, ?, ?)
+  //    ON DUPLICATE KEY UPDATE
+  //      is_closed=VALUES(is_closed),
+  //      open_time=VALUES(open_time),
+  //      close_time=VALUES(close_time),
+  //      note=VALUES(note)`,
+  //   [date, closed, open, close, note || null]
+  // );
+  
+  await db.query(
+  `INSERT INTO store_schedule_exceptions (date, is_closed, open_time, close_time, note)
+   VALUES (?, ?, ?, ?, ?)
+   AS new
+   ON DUPLICATE KEY UPDATE
+     is_closed = new.is_closed,
+     open_time = new.open_time,
+     close_time = new.close_time,
+     note = new.note`,
+  [date, closed, open, close, note || null]
+);
+
+  
+
+  res.json({ ok: true });
+});
+
+// Delete exception (admin)
+router.delete("/schedule/exceptions/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  await db.query(`DELETE FROM store_schedule_exceptions WHERE id=?`, [id]);
+  res.json({ ok: true });
+});
+
 
 module.exports = router;

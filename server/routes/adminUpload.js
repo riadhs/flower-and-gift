@@ -8,25 +8,38 @@ const router = express.Router();
 router.use(adminAuth);
 
 /**
- * Client will request a signature, then upload directly to Cloudinary.
+ * Client requests a signature, then uploads directly to Cloudinary.
+ * We sign ONLY the params the client will actually send in the upload form.
  */
 router.get("/cloudinary-signature", (req, res) => {
-  const timestamp = Math.round(Date.now() / 1000);
+  try {
+    const timestamp = Math.round(Date.now() / 1000);
 
-  const folder = process.env.CLOUDINARY_UPLOAD_FOLDER || "flower-gift/products";
+    // Put your uploads under a folder in Cloudinary
+    const folder =
+      process.env.CLOUDINARY_UPLOAD_FOLDER || "flower-gift/products";
 
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder },
-    process.env.CLOUDINARY_API_SECRET
-  );
+    const paramsToSign = { timestamp, folder };
 
-  res.json({
-    timestamp,
-    signature,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    folder,
-  });
+    const signature = cloudinary.utils.api_sign_request(
+      paramsToSign,
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    res.json({
+      timestamp,
+      signature,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      folder,
+    });
+  } catch (err) {
+    console.error("Cloudinary signature error:", err);
+    res.status(500).json({
+      error: "Failed to generate signature",
+      details: err.message,
+    });
+  }
 });
 
 module.exports = router;
