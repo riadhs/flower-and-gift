@@ -9,6 +9,14 @@ import Time from "./Time.jsx";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import ProductCard from "./productCard.jsx"
 
+import AdminLogin from "./admin/pages/AdminLogin.jsx";
+import AdminProducts from "./admin/pages/AdminProducts.jsx";
+import AdminProductForm from "./admin/pages/AdminProductForm.jsx";
+import RequireAdmin from "./admin/RequireAdmin.jsx";
+import AdminAddons from "./admin/pages/AdminAddons";
+import AdminAddonForm from "./admin/pages/AdminAddonForm";
+
+
 
 // helper for URL
 function slugify(name) {
@@ -44,12 +52,80 @@ function getPrevNextCategory(currentCategory) {
 
 
 
+// export default function App() {
+//   return (
+//     <Routes>
+//       <Route path="/" element={<CatalogPreviewPage />} />
+//       <Route path="/category/:categorySlug" element={<CategoryPage />} />
+//       <Route path="/cart" element={<CartPage />} />
+//     </Routes>
+//   );
+// }
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<CatalogPreviewPage />} />
-      <Route path="/category/:categorySlug" element={<CategoryPage />} />
-      <Route path="/cart" element={<CartPage />} />
+      {/* your storefront routes */}
+       <Route path="/" element={<CatalogPreviewPage />} /> 
+      <Route path="/category/:categorySlug" element={<CategoryPage />} /> 
+      <Route path="/cart" element={<CartPage />} /> 
+
+      {/* ADMIN */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+
+      <Route
+        path="/admin/products"
+        element={
+          <RequireAdmin>
+            <AdminProducts />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/products/new"
+        element={
+          <RequireAdmin>
+            <AdminProductForm mode="create" />
+          </RequireAdmin>
+        }
+      />
+
+      <Route
+        path="/admin/products/:id"
+        element={
+          <RequireAdmin>
+            <AdminProductForm mode="edit" />
+          </RequireAdmin>
+        }
+      />
+      <Route
+  path="/admin/addons"
+  element={
+    <RequireAdmin>
+      <AdminAddons />
+    </RequireAdmin>
+  }
+/>
+
+<Route
+  path="/admin/addons/new"
+  element={
+    <RequireAdmin>
+      <AdminAddonForm mode="new" />
+    </RequireAdmin>
+  }
+/>
+
+<Route
+  path="/admin/addons/:id"
+  element={
+    <RequireAdmin>
+      <AdminAddonForm mode="edit" />
+    </RequireAdmin>
+  }
+/>
+
     </Routes>
   );
 }
