@@ -78,8 +78,11 @@ app.use("/api/schedule", scheduleRoutes);
 app.get("/api/categories", async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT id, name, slug FROM categories ORDER BY name ASC`
-    );
+    `SELECT id, name, slug
+     FROM categories
+     WHERE is_active = TRUE
+     ORDER BY sort_order ASC, name ASC`
+  );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: "Failed to load categories" });

@@ -1,39 +1,17 @@
-// src/components/Time.jsx
-
-import { getScheduleForDate, formatTime12h } from "./storeSchedule";
-
-const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-// export default function Time({ today }) {
-//   // today is a Date object (passed from App.jsx)
-//   const { dayIndex, closed, open, close } = getScheduleForDate(today);
-
-//   const dayName = DAY_LABELS[dayIndex];
-//   const text = closed ? "Closed" : `${formatTime12h(open)} - ${formatTime12h(close)}`;
-
-//   return (
-//     <div className="hours">
-//       {/* <div className="hoursLabel">{dayName} :</div> */}
-//       <div className="hoursTime">{text}</div>
-//     </div>
-//   );
-// }
-
+import useSchedule, { getScheduleForDate, formatTime12h } from "./storeSchedule";
 
 export default function Time({ today }) {
-  // ✅ fallback if today prop is missing
   const date = today instanceof Date ? today : new Date();
+  const { weekly, exceptions, loading } = useSchedule();
 
-  const { dayIndex, closed, open, close } = getScheduleForDate(date);
+  if (loading) return <div className="hours"><div className="hoursTime">Loading...</div></div>;
 
-  const text = closed
-    ? "Closed"
-    : `${formatTime12h(open)} - ${formatTime12h(close)}`;
+  const { closed, open, close } = getScheduleForDate(date, weekly, exceptions);
+
+  const text = closed ? "Closed" : `${formatTime12h(open)} - ${formatTime12h(close)}`;
 
   return (
     <div className="hours">
-      {/* Optional label */}
-      {/* <div className="hoursLabel">{DAY_LABELS[dayIndex]} :</div> */}
       <div className="hoursTime">{text}</div>
     </div>
   );

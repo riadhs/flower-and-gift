@@ -35,6 +35,84 @@ router.post("/login", async (req, res) => {
 /** Protect everything below */
 router.use(adminAuth);
 
+function slugify(str) {
+  return String(str || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+const categorySchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().optional(),
+  is_active: z.coerce.boolean().optional().default(true), // only if you added is_active
+});
+
+router.get("/categories", async (req, res) => {
+  const [rows] = await db.query(
+    `SELECT id, name, slug, ${/* if active column exists */""} is_active
+     FROM categories
+     ORDER BY name ASC`
+  );
+  res.json(rows);
+});
+
+router.post("/categories", async (req, res) => {
+  const data = categorySchema.parse(req.body);
+  const slug = data.slug ? slugify(data.slug) : slugify(data.name);
+
+  const [result] = await db.query(
+    `INSERT INTO categories (name, slug${data.is_active !== undefined ? ", is_active" : ""})
+     VALUES (?, ?${data.is_active !== undefined ? ", ?" : ""})`,
+    data.is_active !== undefined ? [data.name, slug, data.is_active] : [data.name, slug]
+  );
+
+  res.status(201).json({ id: result.insertId });
+});
+
+router.put("/categories/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const data = categorySchema.parse(req.body);
+  const slug = data.slug ? slugify(data.slug) : slugify(data.name);
+
+  await db.query(
+    `UPDATE categories
+     SET name=?, slug=?${data.is_active !== undefined ? ", is_active=?" : ""}
+     WHERE id=?`,
+    data.is_active !== undefined ? [data.name, slug, data.is_active, id] : [data.name, slug, id]
+  );
+
+  res.json({ ok: true });
+});
+
+router.delete("/categories/:id", async (req, res) => {
+  const id = Number(req.params.id);
+
+  await db.query(`UPDATE categories SET is_active=FALSE WHERE id=?`, [id]);
+  res.json({ ok: true });
+});
+
+router.delete("/categories/:id/hard", async (req, res) => {
+  const id = Number(req.params.id);
+
+  const [[countRow]] = await db.query(
+    `SELECT COUNT(*) AS cnt FROM products WHERE category_id=?`,
+    [id]
+  );
+
+  if (countRow.cnt > 0) {
+    return res.status(400).json({
+      error: "This category has products. Move products to another category before deleting.",
+    });
+  }
+
+  await db.query(`DELETE FROM categories WHERE id=?`, [id]);
+  res.json({ ok: true });
+});
+
+
 
 router.get("/products", async (req, res) => {
   const [rows] = await db.query(
@@ -84,14 +162,27 @@ router.get("/products/:id", async (req, res) => {
 
 
 
+// const productSchema = z.object({
+//   title: z.string().min(1),
+//   description: z.string().optional().default(""),
+//   image_url: z.string().url().optional().default(""),
+//   category_id: z.coerce.number().int(),     // ✅ coerce fixes frontend sending "3"
+//   is_active: z.coerce.boolean().optional().default(true),
+//   price: z.coerce.number().nonnegative().optional().default(0), // ✅ from admin form
+// });
+
 const productSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().trim().min(1, "Title is required"),
   description: z.string().optional().default(""),
-  image_url: z.string().url().optional().default(""),
-  category_id: z.coerce.number().int(),     // ✅ coerce fixes frontend sending "3"
+
+  // allow "" or a valid URL
+  image_url: z.union([z.string().url(), z.literal("")]).optional().default(""),
+
+  category_id: z.coerce.number().int(),
   is_active: z.coerce.boolean().optional().default(true),
-  price: z.coerce.number().nonnegative().optional().default(0), // ✅ from admin form
+  price: z.coerce.number().nonnegative().optional().default(0),
 });
+
 
 
 router.post("/products", async (req, res) => {
